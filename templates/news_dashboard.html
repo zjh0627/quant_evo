@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全球财经资讯 - Quant Evo</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg-primary: #0f1419;
+            --bg-secondary: #1a2332;
+            --bg-card: #232d3f;
+            --text-primary: #e7e9ea;
+            --text-secondary: #8b98a5;
+            --accent-blue: #1d9bf0;
+            --accent-green: #00ba7c;
+            --accent-red: #f4212e;
+            --accent-yellow: #ffd700;
+            --border-color: #2f3a4a;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: bold;
+            color: var(--accent-blue);
+        }
+
+        .header-stats {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+        }
+
+        .sentiment-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .sentiment-bullish { background: var(--accent-green); }
+        .sentiment-bearish { background: var(--accent-red); }
+        .sentiment-neutral { background: var(--accent-yellow); }
+
+        /* Main Layout */
+        .main-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 250px 1fr 300px;
+            gap: 20px;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 16px;
+            height: fit-content;
+            position: sticky;
+            top: 80px;
+        }
+
+        .sidebar-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .category-list {
+            list-style: none;
+        }
+
+        .category-item {
+            padding: 10px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s;
+            font-size: 14px;
+        }
+
+        .category-item:hover {
+            background: var(--bg-card);
+        }
+
+        .category-item.active {
+            background: var(--accent-blue);
+            color: white;
+        }
+
+        .category-count {
+            background: var(--bg-primary);
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .category-item.active .category-count {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+
+        /* News Feed */
+        .news-feed {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .news-card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 16px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .news-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .news-meta {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .news-source {
+            background: var(--bg-card);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .news-category {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+
+        .category-forex { background: #4a9eff; }
+        .category-futures { background: #ff9f43; }
+        .category-tech { background: #a55eea; }
+        .category-geopolitics { background: #fc5c65; }
+        .category-figure { background: #26de81; }
+        .category-central_bank { background: #fd9644; }
+        .category-us_stock { background: #2bcbba; }
+        .category-hk_stock { background: #eb3b5a; }
+        .category-a_stock { background: #fa8231; }
+        .category-fund { background: #45aaf2; }
+        .category-institution { background: #7c3aed; }
+        .category-bond { background: #d1a3ff; }
+        .category-policy { background: #f7b731; }
+        .category-macro { background: #3867d6; }
+        .category-company { background: #20bf6b; }
+        .category-disaster { background: #eb3b5a; }
+
+        .news-title {
+            font-size: 15px;
+            line-height: 1.4;
+            margin-bottom: 8px;
+        }
+
+        .news-content {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .news-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .news-time {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .news-sentiment {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+        }
+
+        .sentiment-up { color: var(--accent-green); }
+        .sentiment-down { color: var(--accent-red); }
+        .sentiment-flat { color: var(--text-secondary); }
+
+        /* Right Panel */
+        .right-panel {
+            position: sticky;
+            top: 80px;
+            height: fit-content;
+        }
+
+        .panel-card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .panel-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .refresh-btn {
+            background: var(--accent-blue);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .refresh-btn:hover { opacity: 0.8; }
+
+        .sentiment-display {
+            text-align: center;
+            padding: 20px 0;
+        }
+
+        .sentiment-value {
+            font-size: 48px;
+            font-weight: bold;
+        }
+
+        .sentiment-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-top: 8px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .stat-box {
+            background: var(--bg-card);
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--accent-blue);
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-secondary);
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--accent-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .main-container {
+                grid-template-columns: 1fr;
+            }
+            .sidebar, .right-panel {
+                position: static;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">📰 全球财经资讯</div>
+            <div class="header-stats">
+                <div class="stat-item">
+                    <span>总新闻:</span>
+                    <span id="total-count">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>市场情绪:</span>
+                    <div class="sentiment-indicator sentiment-neutral" id="header-sentiment"></div>
+                    <span id="header-sentiment-text">中性</span>
+                </div>
+                <div class="stat-item">
+                    <span id="last-update">--</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-container">
+        <!-- Left Sidebar - Categories -->
+        <aside class="sidebar">
+            <div class="sidebar-title">资讯分类</div>
+            <ul class="category-list" id="category-list">
+                <li class="category-item active" data-category="all">
+                    <span>📋 全部</span>
+                    <span class="category-count" id="count-all">0</span>
+                </li>
+                <li class="category-item" data-category="forex">
+                    <span>💱 外汇</span>
+                    <span class="category-count" id="count-forex">0</span>
+                </li>
+                <li class="category-item" data-category="futures">
+                    <span>📦 期货</span>
+                    <span class="category-count" id="count-futures">0</span>
+                </li>
+                <li class="category-item" data-category="tech">
+                    <span>💻 科技</span>
+                    <span class="category-count" id="count-tech">0</span>
+                </li>
+                <li class="category-item" data-category="geopolitics">
+                    <span>🌍 地缘局势</span>
+                    <span class="category-count" id="count-geopolitics">0</span>
+                </li>
+                <li class="category-item" data-category="central_bank">
+                    <span>🏦 央行</span>
+                    <span class="category-count" id="count-central_bank">0</span>
+                </li>
+                <li class="category-item" data-category="a_stock">
+                    <span>🇨🇳 A股</span>
+                    <span class="category-count" id="count-a_stock">0</span>
+                </li>
+                <li class="category-item" data-category="us_stock">
+                    <span>🇺🇸 美股</span>
+                    <span class="category-count" id="count-us_stock">0</span>
+                </li>
+                <li class="category-item" data-category="macro">
+                    <span>📈 宏观经济</span>
+                    <span class="category-count" id="count-macro">0</span>
+                </li>
+                <li class="category-item" data-category="company">
+                    <span>🏢 公司</span>
+                    <span class="category-count" id="count-company">0</span>
+                </li>
+            </ul>
+        </aside>
+
+        <!-- News Feed -->
+        <section class="news-feed" id="news-feed">
+            <div class="loading">
+                <div class="spinner"></div>
+                <div>加载中...</div>
+            </div>
+        </section>
+
+        <!-- Right Panel -->
+        <aside class="right-panel">
+            <!-- Market Sentiment -->
+            <div class="panel-card">
+                <div class="panel-title">
+                    市场情绪
+                    <button class="refresh-btn" onclick="fetchSummary()">刷新</button>
+                </div>
+                <div class="sentiment-display">
+                    <div class="sentiment-value" id="sentiment-value">--</div>
+                    <div class="sentiment-label" id="sentiment-label">加载中</div>
+                </div>
+            </div>
+
+            <!-- Statistics -->
+            <div class="panel-card">
+                <div class="panel-title">数据统计</div>
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <div class="stat-value" id="stat-total">0</div>
+                        <div class="stat-label">总新闻</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="stat-high">0</div>
+                        <div class="stat-label">高重要性</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="stat-bullish">0</div>
+                        <div class="stat-label">利好</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="stat-bearish">0</div>
+                        <div class="stat-label">利空</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sources -->
+            <div class="panel-card">
+                <div class="panel-title">新闻来源</div>
+                <div id="source-stats" style="font-size: 13px; color: var(--text-secondary);">
+                    加载中...
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <script>
+        // Global state
+        let currentCategory = 'all';
+        let allNews = [];
+        let summary = {};
+
+        // API Base
+        const API_BASE = 'http://localhost:5125/api';
+
+        // Category name mapping
+        const categoryNames = {
+            'forex': '外汇', 'futures': '期货', 'tech': '科技',
+            'geopolitics': '地缘', 'figure': '人物', 'central_bank': '央行',
+            'us_stock': '美股', 'hk_stock': '港股', 'a_stock': 'A股',
+            'fund': '基金', 'institution': '机构', 'bond': '债券',
+            'policy': '政策', 'macro': '宏观', 'company': '公司', 'disaster': '灾害'
+        };
+
+        // Fetch summary
+        async function fetchSummary() {
+            try {
+                const resp = await fetch(`${API_BASE}/news/summary`);
+                const data = await resp.json();
+                if (data.code === 0) {
+                    summary = data.data;
+                    updateSummaryUI();
+                }
+            } catch (e) {
+                console.error('获取摘要失败:', e);
+            }
+        }
+
+        // Update summary UI
+        function updateSummaryUI() {
+            // Sentiment
+            const sentiment = summary.market_sentiment || 0;
+            const sentimentLabel = summary.market_sentiment_label || 'neutral';
+            document.getElementById('sentiment-value').textContent = (sentiment >= 0 ? '+' : '') + sentiment.toFixed(2);
+            document.getElementById('sentiment-value').style.color =
+                sentimentLabel === 'bullish' ? '#00ba7c' : sentimentLabel === 'bearish' ? '#f4212e' : '#ffd700';
+            document.getElementById('sentiment-label').textContent =
+                sentimentLabel === 'bullish' ? '偏多' : sentimentLabel === 'bearish' ? '偏空' : '中性';
+
+            // Header sentiment
+            document.getElementById('header-sentiment').className = `sentiment-indicator sentiment-${sentimentLabel}`;
+            document.getElementById('header-sentiment-text').textContent =
+                sentimentLabel === 'bullish' ? '偏多' : sentimentLabel === 'bearish' ? '偏空' : '中性';
+
+            // Stats
+            document.getElementById('stat-total').textContent = summary.total || 0;
+            document.getElementById('total-count').textContent = summary.total || 0;
+            document.getElementById('last-update').textContent = summary.last_fetch ?
+                new Date(summary.last_fetch).toLocaleTimeString() : '--';
+
+            // Importance
+            const importance = summary.importance || {};
+            document.getElementById('stat-high').textContent = importance.high || 0;
+
+            // Sentiment distribution
+            const sentimentDist = summary.sentiment || {};
+            document.getElementById('stat-bullish').textContent = sentimentDist.bullish || 0;
+            document.getElementById('stat-bearish').textContent = sentimentDist.bearish || 0;
+
+            // Category counts
+            const categories = summary.categories || {};
+            for (const [cat, count] of Object.entries(categories)) {
+                const el = document.getElementById(`count-${cat}`);
+                if (el) el.textContent = count;
+            }
+
+            // Sources
+            const sources = summary.sources || {};
+            const sourceEl = document.getElementById('source-stats');
+            const sourceNames = { wallstreetcn: '华尔街见闻', eastmoney: '东方财富', caixin: '财新' };
+            sourceEl.innerHTML = Object.entries(sources).map(([src, cnt]) =>
+                `<div style="display:flex;justify-content:space-between;padding:4px 0;">
+                    <span>${sourceNames[src] || src}</span>
+                    <span>${cnt}</span>
+                </div>`
+            ).join('');
+        }
+
+        // Fetch news
+        async function fetchNews() {
+            try {
+                const url = currentCategory === 'all'
+                    ? `${API_BASE}/news?limit=100`
+                    : `${API_BASE}/news?categories=${currentCategory}&limit=50`;
+
+                const resp = await fetch(url);
+                const data = await resp.json();
+                if (data.code === 0) {
+                    allNews = data.data.news || [];
+                    renderNews();
+                }
+            } catch (e) {
+                console.error('获取新闻失败:', e);
+                document.getElementById('news-feed').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📡</div>
+                        <div>无法连接到服务器</div>
+                        <div style="font-size:12px;margin-top:8px;">请确保新闻服务已启动 (python main.py news)</div>
+                    </div>
+                `;
+            }
+        }
+
+        // Render news
+        function renderNews() {
+            const feed = document.getElementById('news-feed');
+
+            if (allNews.length === 0) {
+                feed.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <div>暂无新闻</div>
+                    </div>
+                `;
+                return;
+            }
+
+            feed.innerHTML = allNews.map(news => {
+                const sentiment = news.sentiment || 0;
+                const sentimentClass = sentiment > 0.1 ? 'sentiment-up' : sentiment < -0.1 ? 'sentiment-down' : 'sentiment-flat';
+                const sentimentIcon = sentiment > 0.1 ? '↑' : sentiment < -0.1 ? '↓' : '→';
+                const categoryClass = `category-${news.primary_category}`;
+                const categoryName = categoryNames[news.primary_category] || news.primary_category;
+
+                const time = new Date(news.publish_time).toLocaleString('zh-CN', {
+                    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+                });
+
+                return `
+                    <article class="news-card">
+                        <div class="news-meta">
+                            <span class="news-source">${news.source === 'wallstreetcn' ? '华尔街见闻' : news.source === 'caixin' ? '财新' : '东方财富'}</span>
+                            <span class="news-category ${categoryClass}">${categoryName}</span>
+                            ${news.importance === 'high' ? '<span style="color:#f4212e;font-size:11px;">🔥重要</span>' : ''}
+                        </div>
+                        <h3 class="news-title">${news.title}</h3>
+                        ${news.summary ? `<p class="news-content">${news.summary}</p>` : ''}
+                        <div class="news-footer">
+                            <span class="news-time">${time}</span>
+                            <span class="news-sentiment ${sentimentClass}">
+                                ${sentimentIcon} ${(sentiment >= 0 ? '+' : '') + sentiment.toFixed(2)}
+                            </span>
+                        </div>
+                    </article>
+                `;
+            }).join('');
+        }
+
+        // Category click handler
+        document.getElementById('category-list').addEventListener('click', (e) => {
+            const item = e.target.closest('.category-item');
+            if (item) {
+                document.querySelectorAll('.category-item').forEach(el => el.classList.remove('active'));
+                item.classList.add('active');
+                currentCategory = item.dataset.category;
+                fetchNews();
+            }
+        });
+
+        // Initial load
+        fetchSummary();
+        fetchNews();
+
+        // Auto refresh every 30 seconds
+        setInterval(() => {
+            fetchSummary();
+            fetchNews();
+        }, 30000);
+    </script>
+</body>
+</html>

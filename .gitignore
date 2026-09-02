@@ -1,0 +1,70 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+venv*/
+.venv*/
+
+# Data files (exclude all data)
+data/
+*.csv
+*.json
+*.parquet
+*.db
+*.db-journal
+
+# Models
+*.h5
+*.pkl
+*.joblib
+*.model
+models/
+
+# Cache
+cache/
+*.log
+*.tmp
+
+# Environment
+.env
+.env.local
+.env.*.local
+config/secrets.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Confidential/Config
+config/*
+!config/.gitkeep
+notify_config.json
+
+# Web server logs
+web_server.log
+realtime_loop.log
+daily_signal_cron.log
+
+# Backtest results (can be regenerated)
+backtest_results/

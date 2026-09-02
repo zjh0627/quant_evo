@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.quantevo.daily_signal</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/keira/project/claude/quant_evo/.venv/bin/python</string>
+        <string>/Users/keira/project/claude/quant_evo/scripts/daily_signal_push.py</string>
+        <string>generate</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>15</integer>
+        <key>Minute</key>
+        <integer>50</integer>
+        <key>Weekday</key>
+        <integer>1,2,3,4,5</integer>
+    </dict>
+    <key>RunAtLoad</key>
+    <false/>
+    <key>StandardOutPath</key>
+    <string>/Users/keira/project/claude/quant_evo/data/cache/daily_signal.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/keira/project/claude/quant_evo/data/cache/daily_signal.err</string>
+</dict>
+</plist>

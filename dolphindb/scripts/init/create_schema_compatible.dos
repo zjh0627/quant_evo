@@ -1,0 +1,120 @@
+// =============================================
+// Quant Evo 数据层 Schema 初始化脚本 (简化版)
+// 生成时间: 2026-07-20
+//
+// 分区策略: VALUE on date (统一按日期分区)
+// =============================================
+
+// 数据库路径定义
+MARKET_DB = "dfs://quant_evo_market"
+METADATA_DB = "dfs://quant_evo_metadata"
+FACTORS_DB = "dfs://quant_evo_factors"
+
+// =============================================
+// Layer 1: 基础行情层
+// =============================================
+
+// ---------- 日线行情表 (daily_k) ----------
+if(existsDatabase(MARKET_DB)) {
+    dropDatabase(MARKET_DB)
+}
+
+db = database(MARKET_DB, VALUE, 2020.01.01..2030.01.01)
+
+colNames = ["trade_date", "security_id", "open", "high", "low", "close", "volume", "amount", "turn", "pct_chg", "is_suspended", "is_limit_up", "is_limit_down", "pre_close", "adj_factor"]
+colTypes = [DATE, SYMBOL, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, BOOL, BOOL, BOOL, DOUBLE, DOUBLE]
+schema_daily = table(100:0, colNames, colTypes)
+
+t_daily = createPartitionedTable(db, schema_daily, "daily_k", `trade_date)
+print("Created table: daily_k")
+
+// ---------- 1分钟K线表 (min_1k) ----------
+db_min = database(MARKET_DB + "/min_1k", VALUE, 2020.01.01..2030.01.01)
+
+colNames1 = ["trade_time", "security_id", "open", "high", "low", "close", "volume", "amount"]
+colTypes1 = [TIMESTAMP, SYMBOL, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE]
+schema_min1 = table(100:0, colNames1, colTypes1)
+
+t_min1 = createPartitionedTable(db_min, schema_min1, "min_1k", `trade_time)
+print("Created table: min_1k")
+
+// ---------- 5分钟K线表 (min_5k) ----------
+db_min5 = database(MARKET_DB + "/min_5k", VALUE, 2020.01.01..2030.01.01)
+schema_min5 = table(100:0, colNames1, colTypes1)
+t_min5 = createPartitionedTable(db_min5, schema_min5, "min_5k", `trade_time)
+print("Created table: min_5k")
+
+// ---------- 15分钟K线表 (min_15k) ----------
+db_min15 = database(MARKET_DB + "/min_15k", VALUE, 2020.01.01..2030.01.01)
+schema_min15 = table(100:0, colNames1, colTypes1)
+t_min15 = createPartitionedTable(db_min15, schema_min15, "min_15k", `trade_time)
+print("Created table: min_15k")
+
+
+// =============================================
+// Layer 2: 辅助因子层
+// =============================================
+
+// ---------- 财务数据表 (fundamental) ----------
+if(existsDatabase(METADATA_DB)) {
+    dropDatabase(METADATA_DB)
+}
+
+db_meta = database(METADATA_DB, VALUE, 2020.01.01..2030.01.01)
+
+colNames2 = ["report_date", "security_id", "pe_ttm", "pe_ltm", "pb", "ps_ttm", "pcf", "roe", "roa", "gross_margin", "net_margin", "debt_ratio", "current_ratio", "quick_ratio", "total_revenue", "net_profit", "operating_cf", "investing_cf", "financing_cf"]
+colTypes2 = [DATE, SYMBOL, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE]
+schema_fund = table(100:0, colNames2, colTypes2)
+t_fund = createPartitionedTable(db_meta, schema_fund, "fundamental", `report_date)
+print("Created table: fundamental")
+
+// ---------- 市场标记表 (market_flag) ----------
+db_flag = database(METADATA_DB + "/market_flag", VALUE, 2020.01.01..2030.01.01)
+
+colNames3 = ["trade_date", "security_id", "is_st", "is_new", "is_hs300", "is_zz500", "is_zz1000", "industry", "market_cap", "float_cap", "total_shares", "float_shares"]
+colTypes3 = [DATE, SYMBOL, BOOL, BOOL, BOOL, BOOL, BOOL, STRING, DOUBLE, DOUBLE, DOUBLE, DOUBLE]
+schema_flag = table(100:0, colNames3, colTypes3)
+t_flag = createPartitionedTable(db_flag, schema_flag, "market_flag", `trade_date)
+print("Created table: market_flag")
+
+
+// =============================================
+// Layer 3: 中间计算层
+// =============================================
+
+// ---------- 日频因子表 (factor_daily) ----------
+if(existsDatabase(FACTORS_DB)) {
+    dropDatabase(FACTORS_DB)
+}
+
+db_factor = database(FACTORS_DB, VALUE, 2020.01.01..2030.01.01)
+
+colNames4 = ["trade_date", "security_id", "momentum_1d", "momentum_5d", "momentum_10d", "momentum_20d", "momentum_60d", "volatility_5d", "volatility_20d", "vol_ratio_5_20", "ma_5", "ma_10", "ma_20", "ma_60", "ma_bull", "macd", "macd_signal", "macd_hist", "volume_ratio", "pv_corr", "money_flow", "rsi_6", "rsi_12", "rsi_24", "bb_upper", "bb_mid", "bb_lower", "bb_width", "bb_position", "atr_14", "cci_14", "composite_score", "signal"]
+colTypes4 = [DATE, SYMBOL, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, INT, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, STRING]
+schema_factor_d = table(100:0, colNames4, colTypes4)
+t_factor_d = createPartitionedTable(db_factor, schema_factor_d, "factor_daily", `trade_date)
+print("Created table: factor_daily")
+
+// ---------- 分钟因子表 (factor_min) ----------
+db_factor_m = database(FACTORS_DB + "/factor_min", VALUE, 2020.01.01..2030.01.01)
+
+colNames5 = ["trade_time", "security_id", "ma_5m", "ma_10m", "ma_20m", "ma_60m", "macd", "macd_signal", "macd_hist", "kdj_k", "kdj_d", "kdj_j", "rsi", "bb_upper", "bb_lower", "bb_position", "composite_score", "signal"]
+colTypes5 = [TIMESTAMP, SYMBOL, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, STRING]
+schema_factor_m = table(100:0, colNames5, colTypes5)
+t_factor_m = createPartitionedTable(db_factor_m, schema_factor_m, "factor_min", `trade_time)
+print("Created table: factor_min")
+
+
+// =============================================
+// 完成
+// =============================================
+print("========================================")
+print("All tables created successfully!")
+print("========================================")
+print("Database: " + MARKET_DB)
+print("  - daily_k, min_1k, min_5k, min_15k")
+print("Database: " + METADATA_DB)
+print("  - fundamental, market_flag")
+print("Database: " + FACTORS_DB)
+print("  - factor_daily, factor_min")
+print("========================================")

@@ -1,0 +1,73 @@
+// DolphinDB 初始化脚本
+// 创建 quant_evo 所需的数据库和表
+
+// 1. 创建数据库
+login("admin", "123456")
+
+// 日线K线数据库 (按日期分区)
+if(existsDatabase("dfs://kline_day")) {
+    dropDatabase("dfs://kline_day")
+}
+kline_db = database("dfs://kline_day", RANGE, 2020.01.01..2030.01.01)
+
+// 分钟K线数据库 (按日期+股票复合分区)
+if(existsDatabase("dfs://kline_min")) {
+    dropDatabase("dfs://kline_min")
+}
+min_db = database("dfs://kline_min", COMPO, [2020.01.01..2030.01.01, take(symbol(), 100)])
+
+// 财务数据库
+if(existsDatabase("dfs://financial")) {
+    dropDatabase("dfs://financial")
+}
+fin_db = database("dfs://financial", RANGE, 2020.01.01..2030.01.01)
+
+// 因子数据库
+if(existsDatabase("dfs://factors")) {
+    dropDatabase("dfs://factors")
+}
+factor_db = database("dfs://factors", RANGE, 2020.01.01..2030.01.01)
+
+// 2. 创建表
+
+// 日线K线表
+kline_schema = table(100:0,
+    `date`code`open`high`low`close`volume`amount`turn`pctChg,
+    [DATE, SYMBOL, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE]
+)
+kline_day = createPartitionedTable(kline_db, kline_schema, "kline_day", `date)
+
+// 分钟K线表
+min_kline_schema = table(1000000:0,
+    `datetime`code`open`high`low`close`volume`amount,
+    [TIMESTAMP, SYMBOL, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE]
+)
+kline_min = createPartitionedTable(min_db, min_kline_schema, "kline_1min", `datetime)
+
+// 财务数据表
+financial_schema = table(100:0,
+    `date`code`reportType`roe`roa`grossMargin`netProfit`totalAssets`totalLiabilities`operatingCashFlow,
+    [DATE, SYMBOL, SYMBOL, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE]
+)
+financial = createPartitionedTable(fin_db, financial_schema, "financial", `date)
+
+// 因子表
+factor_schema = table(10000:0,
+    `date`code`momentum5`momentum20`volatility20`rsi`cci`score`signal,
+    [DATE, SYMBOL, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, DOUBLE, SYMBOL]
+)
+factors = createPartitionedTable(factor_db, factor_schema, "daily_factors", `date)
+
+// 3. 创建视图方便查询
+
+// 最新价格视图
+createView("latest_price", <
+//    select top 100 by date desc, code from kline_day
+}>)
+
+// 因子信号视图
+createView("factor_signals", <
+//    select top 100 by date desc, code from factors where signal = 'BUY'
+}>)
+
+print("DolphinDB schema 初始化完成")

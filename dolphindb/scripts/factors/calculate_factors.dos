@@ -1,0 +1,88 @@
+// 因子计算脚本
+// 基于K线数据计算技术因子
+
+// 加载K线数据
+t = loadTable("dfs://kline_day", "kline_day")
+
+// 计算动量因子
+momentum = select
+    date, code, close,
+    close / lag(close, 5) - 1 as momentum5d,
+    close / lag(close, 10) - 1 as momentum10d,
+    close / lag(close, 20) - 1 as momentum20d,
+    close / lag(close, 60) - 1 as momentum60d
+from t context by code
+
+// 计算波动率因子
+volatility = select
+    date, code,
+    std(close / lag(close, 1) - 1, 5) as volatility5d,
+    std(close / lag(close, 1) - 1, 20) as volatility20d
+from t context by code
+
+// 计算均线因子
+ma = select
+    date, code, close,
+    mavg(close, 5) as ma5,
+    mavg(close, 10) as ma10,
+    mavg(close, 20) as ma20,
+    mavg(close, 60) as ma60,
+    iif(ma5 > ma10 and ma10 > ma20 and ma20 > ma60, 1, 0) as ma_bull
+from t context by code
+
+// 计算RSI
+rsi = select
+    date, code,
+    rsi(close, 14) as rsi
+from t context by code
+
+// 计算CCI
+cci = select
+    date, code,
+    cci(high, low, close, 14) as cci
+from t context by code
+
+// 计算布林带
+bb = select
+    date, code, close,
+    mavg(close, 20) as bb_mid,
+    mstd(close, 20) * 2 as bb_width,
+    (close - (mavg(close, 20) - mstd(close, 20)*2)) / (mstd(close, 20) * 4) as bb_position
+from t context by code
+
+// 合并所有因子
+factors = select
+    m.date, m.code,
+    m.close,
+    m.momentum5d, m.momentum10d, m.momentum20d, m.momentum60d,
+    v.volatility5d, v.volatility20d,
+    ma.ma5, ma.ma10, ma.ma20, ma.ma60, ma.ma_bull,
+    r.rsi, c.cci,
+    b.bb_mid, b.bb_width, b.bb_position
+from
+    (momentum as m
+    left join volatility as v on m.date = v.date and m.code = v.code
+    left join ma on m.date = ma.date and m.code = ma.code
+    left join rsi as r on m.date = r.date and m.code = r.code
+    left join cci as c on m.date = c.date and m.code = c.code
+    left join bb as b on m.date = b.date and m.code = b.code)
+context by m.code
+
+// 生成交易信号
+signals = select
+    date, code,
+    iif(rsi < 30 and momentum5d > -0.03, 'BUY',
+        iif(rsi > 70 or momentum5d > 0.1, 'SELL', 'HOLD')) as signal,
+    (rsi - 50) * 2 + (momentum5d * 100) + iif(ma_bull = 1, 10, -5) as score
+from factors
+context by code
+
+// 写入因子表
+factor_table = loadTable("dfs://factors", "daily_factors")
+factor_table.append!(select date, code,
+    momentum5d as momentum5, momentum20d as momentum20,
+    volatility20d as volatility20,
+    rsi, cci, score, signal
+from signals where isValid(signal))
+
+print("因子计算完成")

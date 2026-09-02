@@ -1,0 +1,237 @@
+// =============================================
+// DolphinDB 回测框架 - 日线批量回测
+// =============================================
+//
+// 功能:
+// 1. 读取信号表和行情数据
+// 2. 模拟 T+1 交易
+// 3. 计算持仓、收益、绩效指标
+//
+// 数据源:
+// - 信号表: dfs://quant_evo_factors/factor_daily (trade_date, security_id, signal, score)
+// - 行情表: dfs://quant_evo_market/daily_k (trade_date, security_id, open, high, low, close, volume)
+//
+// 使用方法:
+// > run("dolphindb/scripts/backtest/daily_backtest.dos")
+// =============================================
+
+// ---------- 配置参数 ----------
+CONFIG_START_DATE = 2024.01.01
+CONFIG_END_DATE = 2024.03.31
+CONFIG_INITIAL_CAPITAL = 10000000.0  // 1000万
+CONFIG_COMMISSION = 0.0003  // 万3佣金
+CONFIG_SLIPPAGE = 0.0001    // 万1滑点
+CONFIG_MAX_POSITIONS = 10   // 最大持仓数
+CONFIG_REBALANCE_DAYS = 5   // 调仓周期
+CONFIG_MIN_SCORE = 60       // 最小评分
+
+// ---------- 加载数据 ----------
+print("Loading data...")
+
+// 加载日线行情
+daily_k = loadTable("dfs://quant_evo_market", "daily_k")
+print("Loaded daily_k table")
+
+// 加载信号
+factor_daily = loadTable("dfs://quant_evo_factors", "factor_daily")
+print("Loaded factor_daily table")
+
+// 过滤日期范围
+trade_dates = exec distinct trade_date from daily_k where trade_date >= CONFIG_START_DATE, trade_date <= CONFIG_END_DATE order by trade_date
+print("Trading dates: " + size(trade_dates) + " days")
+
+// ---------- 信号生成 ----------
+// 基于 RSI 和动量生成交易信号
+signals = select
+    trade_date,
+    security_id,
+    close,
+    rsi_6,
+    momentum_1d,
+    iif(rsi_6 < 30 and momentum_1d > -0.03, 'BUY',
+        iif(rsi_6 > 70 or momentum_1d > 0.1, 'SELL', 'HOLD')) as signal,
+    rsi_6 as score
+from factor_daily
+where trade_date >= CONFIG_START_DATE, trade_date <= CONFIG_END_DATE
+context by security_id
+
+print("Signals generated: " + size(signals) + " records")
+
+// ---------- 回测主逻辑 ----------
+print("Starting backtest...")
+
+// 创建结果表
+results = table(100:0,
+    `trade_date`security_id`action`price`shares`commission`slippage`cash_after`position_value,
+    [DATE, SYMBOL, STRING, DOUBLE, INT, DOUBLE, DOUBLE, DOUBLE, DOUBLE]
+)
+
+// 初始化变量
+capital = CONFIG_INITIAL_CAPITAL
+positions = dict(STRING, ANY)  // 持仓字典
+
+// 按日期迭代
+for (i in 0:size(trade_dates)) {
+    date = trade_dates[i]
+
+    // 1. 获取当天信号
+    day_signals = select * from signals where trade_date = date
+    day_k = select * from daily_k where trade_date = date
+
+    // 2. 计算持仓价值
+    position_value = 0.0
+    for (code in positions.keys()) {
+        price_row = select close from day_k where security_id = code
+        if (size(price_row) > 0) {
+            pos = positions[code]
+            position_value += pos.shares * price_row.close[0]
+        }
+    }
+
+    // 3. 止损止盈检查
+    to_sell = []
+    for (code in positions.keys()) {
+        price_row = select close from day_k where security_id = code
+        if (size(price_row) > 0) {
+            pos = positions[code]
+            pnl_pct = (price_row.close[0] - pos.entry_price) / pos.entry_price
+            if (pnl_pct <= -0.05 or pnl_pct >= 0.15) {
+                to_sell.append!(code)
+            }
+        }
+    }
+
+    // 执行止损止盈卖出
+    for (code in to_sell) {
+        price_row = select close from day_k where security_id = code
+        if (size(price_row) > 0) {
+            pos = positions[code]
+            price = price_row.close[0] * (1 - CONFIG_SLIPPAGE)
+            revenue = pos.shares * price * (1 - CONFIG_COMMISSION)
+            commission = pos.shares * price * CONFIG_COMMISSION
+            slippage = pos.shares * price * CONFIG_SLIPPAGE
+
+            results.append!(table(1:0,
+                `trade_date`security_id`action`price`shares`commission`slippage`cash_after`position_value,
+                [DATE, SYMBOL, STRING, DOUBLE, INT, DOUBLE, DOUBLE, DOUBLE, DOUBLE]
+            ))
+            results.append!([date, code, 'SELL', price, pos.shares, commission, slippage, capital, position_value])
+
+            capital += revenue
+            positions.remove!(code)
+        }
+    }
+
+    // 4. 调仓逻辑 (每N天)
+    if (i % CONFIG_REBALANCE_DAYS == 0) {
+        // 卖出信号
+        sell_signals = select security_id from day_signals where signal = 'SELL'
+        for (row in sell_signals) {
+            code = row.security_id
+            if (code in positions) {
+                price_row = select close from day_k where security_id = code
+                if (size(price_row) > 0) {
+                    pos = positions[code]
+                    price = price_row.close[0] * (1 - CONFIG_SLIPPAGE)
+                    revenue = pos.shares * price * (1 - CONFIG_COMMISSION)
+                    commission = pos.shares * price * CONFIG_COMMISSION
+                    slippage = pos.shares * price * CONFIG_SLIPPAGE
+
+                    results.append!([date, code, 'SELL', price, pos.shares, commission, slippage, capital, position_value])
+
+                    capital += revenue
+                    positions.remove!(code)
+                }
+            }
+        }
+
+        // 买入信号
+        buy_signals = select security_id, score from day_signals
+            where signal = 'BUY' and score >= CONFIG_MIN_SCORE
+            order by score desc
+            limit CONFIG_MAX_POSITIONS - size(positions)
+
+        for (row in buy_signals) {
+            if (capital <= 0) break
+
+            code = row.security_id
+            if (code in positions) continue
+
+            price_row = select open, close from day_k where security_id = code
+            if (size(price_row) > 0) {
+                // 以次日开盘价买入 (T+1)
+                price = price_row.open[0] * (1 + CONFIG_SLIPPAGE)
+                position_value_per_stock = CONFIG_INITIAL_CAPITAL * 0.1  // 10%仓位
+                shares = floor(position_value_per_stock / price / 100) * 100  // 按手买
+
+                if (shares > 0 and shares * price <= capital) {
+                    cost = shares * price * (1 + CONFIG_COMMISSION + CONFIG_SLIPPAGE)
+                    commission = shares * price * CONFIG_COMMISSION
+                    slippage = shares * price * CONFIG_SLIPPAGE
+
+                    results.append!([date, code, 'BUY', price, shares, commission, slippage, capital - cost, position_value])
+
+                    capital -= cost
+                    positions[code] = table(1, 0, [code, shares, date, price, cost])
+                }
+            }
+        }
+    }
+
+    // 5. 记录每日状态
+    if (i % 20 == 0) {
+        print(date + " | Cash: " + capital + " | Positions: " + size(positions) + " | Value: " + (capital + position_value))
+    }
+}
+
+// ---------- 绩效计算 ----------
+print("\n" + "="*60)
+print("Backtest Results")
+print("="*60)
+
+// 计算收益率序列
+equity = select trade_date, position_value + cash_after as total_value
+from results
+order by trade_date
+
+// 最终收益
+final_value = exec max(total_value) from equity
+total_return = (final_value - CONFIG_INITIAL_CAPITAL) / CONFIG_INITIAL_CAPITAL
+print("Total Return: " + total_return + " (" + (total_return * 100) + "%)")
+
+// 夏普比率
+daily_returns = select (total_value / lag(total_value) - 1) as ret from equity context by trade_date
+sharpe = iif(std(daily_returns.ret) > 0, sqrt(252) * avg(daily_returns.ret) / std(daily_returns.ret), 0)
+print("Sharpe Ratio: " + sharpe)
+
+// 最大回撤
+cummax = cummax(equity.total_value)
+drawdown = (equity.total_value - cummax) / cummax
+max_drawdown = min(drawdown)
+print("Max Drawdown: " + max_drawdown + " (" + (max_drawdown * 100) + "%)")
+
+// 交易统计
+total_trades = size(results)
+buy_trades = exec count(*) from results where action = 'BUY'
+sell_trades = exec count(*) from results where action = 'SELL'
+print("Total Trades: " + total_trades + " (BUY: " + buy_trades + ", SELL: " + sell_trades + ")")
+
+// 胜率
+pnls = select
+    security_id,
+    price,
+    shares,
+    lag(price) as buy_price,
+    (price - lag(price)) * shares as pnl
+from results
+where action = 'SELL'
+context by security_id
+
+winning = exec count(*) from pnls where pnl > 0
+losing = exec count(*) from pnls where pnl <= 0
+win_rate = iif(winning + losing > 0, winning * 1.0 / (winning + losing), 0)
+print("Win Rate: " + win_rate + " (" + winning + "/" + (winning + losing) + ")")
+
+print("="*60)
+print("Backtest completed!")
+print("="*60)

@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sprint 计划 - quant_evo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: #16213e;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #2d2d4a;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            color: #fff;
+        }
+
+        .header-nav {
+            display: flex;
+            gap: 16px;
+        }
+
+        .header-nav a {
+            color: #888;
+            text-decoration: none;
+            font-size: 14px;
+            padding: 8px 16px;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .header-nav a:hover, .header-nav a.active {
+            background: #2d2d4a;
+            color: #fff;
+        }
+
+        /* Tabs */
+        .tabs-container {
+            background: #16213e;
+            padding: 0 24px;
+            border-bottom: 1px solid #2d2d4a;
+            display: flex;
+            gap: 4px;
+            overflow-x: auto;
+        }
+
+        .tab {
+            padding: 12px 20px;
+            color: #888;
+            font-size: 13px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            color: #fff;
+        }
+
+        .tab.active {
+            color: #4a9eff;
+            border-bottom-color: #4a9eff;
+        }
+
+        /* Sprint Header */
+        .sprint-header {
+            background: linear-gradient(135deg, #1e3a5f 0%, #16213e 100%);
+            padding: 24px;
+            border-bottom: 1px solid #2d2d4a;
+        }
+
+        .sprint-title {
+            font-size: 24px;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+
+        .sprint-meta {
+            display: flex;
+            gap: 24px;
+            font-size: 13px;
+            color: #888;
+        }
+
+        .sprint-meta span {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .sprint-status {
+            background: #2d7a4f;
+            color: #fff;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+
+        .sprint-status.planning {
+            background: #4a6fa5;
+        }
+
+        /* Kanban Board */
+        .kanban-container {
+            display: flex;
+            gap: 16px;
+            padding: 24px;
+            overflow-x: auto;
+            min-height: calc(100vh - 200px);
+        }
+
+        .kanban-column {
+            min-width: 320px;
+            max-width: 320px;
+            background: #1a1a2e;
+            border-radius: 8px;
+            border: 1px solid #2d2d4a;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .column-header {
+            padding: 16px;
+            border-bottom: 1px solid #2d2d4a;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .column-title {
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .column-count {
+            background: #2d2d4a;
+            color: #888;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 12px;
+        }
+
+        .column-body {
+            padding: 12px;
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        /* Task Cards */
+        .task-card {
+            background: #16213e;
+            border-radius: 6px;
+            padding: 14px;
+            border: 1px solid #2d2d4a;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .task-card:hover {
+            border-color: #4a9eff;
+            transform: translateY(-2px);
+        }
+
+        .task-type {
+            font-size: 11px;
+            color: #4a9eff;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .task-title {
+            font-size: 14px;
+            color: #fff;
+            margin-bottom: 10px;
+            line-height: 1.4;
+        }
+
+        .task-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .task-epic {
+            background: #2d2d4a;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+
+        .task-priority {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .task-priority.p1 { background: #e53935; }
+        .task-priority.p2 { background: #fb8c00; }
+        .task-priority.p3 { background: #4a9eff; }
+
+        .task-status {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+
+        .task-status.todo { background: #3d3d5c; color: #888; }
+        .task-status.in-progress { background: #2d6a4f; color: #4ade80; }
+        .task-status.done { background: #1e3a5f; color: #4a9eff; }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        /* Progress Bar */
+        .progress-bar {
+            height: 4px;
+            background: #2d2d4a;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 12px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4a9eff, #6c5ce7);
+            transition: width 0.3s;
+        }
+
+        /* Sprint Progress */
+        .sprint-progress {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .progress-text {
+            font-size: 12px;
+            color: #888;
+            min-width: 60px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .kanban-container {
+                flex-direction: column;
+            }
+
+            .kanban-column {
+                min-width: 100%;
+                max-width: 100%;
+            }
+        }
+
+        /* Loading */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+            color: #666;
+        }
+
+        .loading::after {
+            content: '';
+            width: 24px;
+            height: 24px;
+            border: 2px solid #2d2d4a;
+            border-top-color: #4a9eff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 12px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>quant_evo Sprint Board</h1>
+        <nav class="header-nav">
+            <a href="/">Dashboard</a>
+            <a href="/todo" class="active">Sprint</a>
+        </nav>
+    </div>
+
+    <div class="sprint-header">
+        <div class="sprint-title">
+            Sprint 3: 数据层升级 + 回测框架
+            <span class="sprint-status planning">规划中</span>
+        </div>
+        <div class="sprint-meta">
+            <span>📅 2026-07-14 ~ 2026-07-31</span>
+            <span>⏱️ 3 周</span>
+            <span id="task-count">加载中...</span>
+        </div>
+        <div class="sprint-progress">
+            <span class="progress-text">完成进度</span>
+            <div class="progress-bar" style="flex: 1;">
+                <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+            </div>
+            <span class="progress-text" id="progress-text">0 / 0</span>
+        </div>
+    </div>
+
+    <div class="tabs-container">
+        <div class="tab active" data-filter="all">全部</div>
+        <div class="tab" data-filter="epic-006">EPIC-006 数据层升级</div>
+        <div class="tab" data-filter="epic-007">EPIC-007 回测框架</div>
+        <div class="tab" data-filter="epic-008">EPIC-008 实盘模块</div>
+        <div class="tab" data-filter="epic-009">EPIC-009 调度可视化</div>
+    </div>
+
+    <div class="kanban-container" id="kanban">
+        <div class="loading">加载中</div>
+    </div>
+
+    <script>
+        // 任务数据
+        const tasks = [
+            // EPIC-006 数据层升级
+            {
+                id: 'DL001-001',
+                title: '设计数据分层 schema',
+                type: 'task',
+                epic: 'EPIC-006',
+                epicName: '数据层升级',
+                status: 'todo',
+                priority: 'p1',
+                description: '基础行情层、因子层、中间计算层'
+            },
+            {
+                id: 'DL001-002',
+                title: '创建 raw_tick 原始逐笔表',
+                type: 'task',
+                epic: 'EPIC-006',
+                epicName: '数据层升级',
+                status: 'todo',
+                priority: 'p1'
+            },
+            {
+                id: 'DL001-003',
+                title: '创建 min_1k 1分钟聚合表',
+                type: 'task',
+                epic: 'EPIC-006',
+                epicName: '数据层升级',
+                status: 'todo',
+                priority: 'p1'
+            },
+            {
+                id: 'DL001-004',
+                title: '创建 daily_k 日线表',
+                type: 'task',
+                epic: 'EPIC-006',
+                epicName: '数据层升级',
+                status: 'todo',
+                priority: 'p1'
+            },
+            {
+                id: 'DL001-005',
+                title: '创建 factor_daily/factor_min 因子表',
+                type: 'task',
+                epic: 'EPIC-006',
+                epicName: '数据层升级',
+                status: 'todo',
+                priority: 'p2'
+            },
+            {
+                id: 'DL002-001',
+                title: '停牌数据剔除逻辑',
+                type: 'task',
+                epic: 'EPIC-006',
+                epicName: '数据层升级',
+                status: 'todo',
+                priority: 'p1',
+                description: 'volume == 0 过滤'
+            },
+            {
+                id: 'DL002-002',
+                title: '涨跌停标记与过滤',
+                type: 'task',
+                epic: 'EPIC-006',
+                epicName: '数据层升级',
+                status: 'todo',
+                priority: 'p1',
+                description: 'limit_up/limit_down 标记'
+            },
+            {
+                id: 'DL002-003',
+                title: '复权价格统一对齐（前复权）',
+                type: 'task',
+                epic: 'EPIC-006',
+                epicName: '数据层升级',
+                status: 'todo',
+                priority: 'p1'
+            },
+            {
+                id: 'DL002-004',
+                title: '去重、补全缺失分钟线',
+                type: 'task',
+                epic: 'EPIC-006',
+                epicName: '数据层升级',
+                status: 'todo',
+                priority: 'p1'
+            },
+            {
+                id: 'DL002-005',
+                title: '成交量/成交额逻辑校验',
+                type: 'task',
+                epic: 'EPIC-006',
+                epicName: '数据层升级',
+                status: 'todo',
+                priority: 'p2'
+            },
+            {
+                id: 'DL003-001',
+                title: '设计复合分区键',
+                type: 'task',
+                epic: 'EPIC-006',
+                epicName: '数据层升级',
+                status: 'todo',
+                priority: 'p1'
+            },
+            {
+                id: 'DL003-002',
+                title: '创建分区函数',
+                type: 'task',
+                epic: 'EPIC-006',
+                epicName: '数据层升级',
+                status: 'todo',
+                priority: 'p1'
+            },
+            {
+                id: 'DL003-003',
+                title: '验证查询性能',
+                type: 'task',
+                epic: 'EPIC-006',
+                epicName: '数据层升级',
+                status: 'todo',
+                priority: 'p1'
+            },
+
+            // EPIC-007 回测框架升级
+            {
+                id: 'BT001-001',
+                title: '信号生成模块（指标条件买入卖出）',
+                type: 'task',
+                epic: 'EPIC-007',
+                epicName: '回测框架升级',
+                status: 'todo',
+                priority: 'p1'
+            },
+            {
+                id: 'BT001-002',
+                title: '仓位管理模块（固定仓位、等权、市值加权）',
+                type: 'task',
+                epic: 'EPIC-007',
+                epicName: '回测框架升级',
+                status: 'todo',
+                priority: 'p1'
+            },
+            {
+                id: 'BT001-003',
+                title: '交易成本模拟（印花税、佣金、滑点）',
+                type: 'task',
+                epic: 'EPIC-007',
+                epicName: '回测框架升级',
+                status: 'todo',
+                priority: 'p1'
+            },
+            {
+                id: 'BT001-004',
+                title: '绩效指标计算（年化收益、最大回撤、夏普、胜率）',
+                type: 'task',
+                epic: 'EPIC-007',
+                epicName: '回测框架升级',
+                status: 'todo',
+                priority: 'p1'
+            },
+            {
+                id: 'BT002-001',
+                title: 'DolphinDB 回测脚本编写',
+                type: 'task',
+                epic: 'EPIC-007',
+                epicName: '回测框架升级',
+                status: 'todo',
+                priority: 'p2'
+            },
+            {
+                id: 'BT002-002',
+                title: '向量化信号计算',
+                type: 'task',
+                epic: 'EPIC-007',
+                epicName: '回测框架升级',
+                status: 'todo',
+                priority: 'p2'
+            },
+            {
+                id: 'BT002-003',
+                title: '批量股票回测测试',
+                type: 'task',
+                epic: 'EPIC-007',
+                epicName: '回测框架升级',
+                status: 'todo',
+                priority: 'p2'
+            },
+            {
+                id: 'BT003-001',
+                title: '未来函数检测机制',
+                type: 'task',
+                epic: 'EPIC-007',
+                epicName: '回测框架升级',
+                status: 'todo',
+                priority: 'p1',
+                description: '不使用当日收盘后数据参与当日信号'
+            },
+            {
+                id: 'BT003-002',
+                title: '复权一致性校验',
+                type: 'task',
+                epic: 'EPIC-007',
+                epicName: '回测框架升级',
+                status: 'todo',
+                priority: 'p1'
+            },
+            {
+                id: 'BT003-003',
+                title: '滑点模拟验证',
+                type: 'task',
+                epic: 'EPIC-007',
+                epicName: '回测框架升级',
+                status: 'todo',
+                priority: 'p1'
+            },
+
+            // EPIC-008 实盘交易模块
+            {
+                id: 'TR001-001',
+                title: '券商开放 API 对接方案评估',
+                type: 'task',
+                epic: 'EPIC-008',
+                epicName: '实盘交易模块',
+                status: 'todo',
+                priority: 'p2'
+            },
+            {
+                id: 'TR001-002',
+                title: '实时行情写入 DolphinDB 流数据表',
+                type: 'task',
+                epic: 'EPIC-008',
+                epicName: '实盘交易模块',
+                status: 'todo',
+                priority: 'p2'
+            },
+            {
+                id: 'TR001-003',
+                title: '行情断线重连机制',
+                type: 'task',
+                epic: 'EPIC-008',
+                epicName: '实盘交易模块',
+                status: 'todo',
+                priority: 'p2'
+            },
+            {
+                id: 'TR002-001',
+                title: '定时任务调度器',
+                type: 'task',
+                epic: 'EPIC-008',
+                epicName: '实盘交易模块',
+                status: 'todo',
+                priority: 'p2'
+            },
+            {
+                id: 'TR002-002',
+                title: '策略逻辑执行',
+                type: 'task',
+                epic: 'EPIC-008',
+                epicName: '实盘交易模块',
+                status: 'todo',
+                priority: 'p2'
+            },
+            {
+                id: 'TR002-003',
+                title: '信号输出与记录',
+                type: 'task',
+                epic: 'EPIC-008',
+                epicName: '实盘交易模块',
+                status: 'todo',
+                priority: 'p2'
+            },
+            {
+                id: 'TR003-001',
+                title: '下单 API 选型（聚宽/米筐/同花顺）',
+                type: 'task',
+                epic: 'EPIC-008',
+                epicName: '实盘交易模块',
+                status: 'todo',
+                priority: 'p2'
+            },
+            {
+                id: 'TR003-002',
+                title: '下单接口封装',
+                type: 'task',
+                epic: 'EPIC-008',
+                epicName: '实盘交易模块',
+                status: 'todo',
+                priority: 'p2'
+            },
+            {
+                id: 'TR003-003',
+                title: '委托/成交回报处理',
+                type: 'task',
+                epic: 'EPIC-008',
+                epicName: '实盘交易模块',
+                status: 'todo',
+                priority: 'p2'
+            },
+            {
+                id: 'TR004-001',
+                title: '单只个股仓位上限（10%）',
+                type: 'task',
+                epic: 'EPIC-008',
+                epicName: '实盘交易模块',
+                status: 'todo',
+                priority: 'p2'
+            },
+            {
+                id: 'TR004-002',
+                title: '总账户仓位上限（80%）',
+                type: 'task',
+                epic: 'EPIC-008',
+                epicName: '实盘交易模块',
+                status: 'todo',
+                priority: 'p2'
+            },
+            {
+                id: 'TR004-003',
+                title: '单日最大亏损止损（5%）',
+                type: 'task',
+                epic: 'EPIC-008',
+                epicName: '实盘交易模块',
+                status: 'todo',
+                priority: 'p2'
+            },
+            {
+                id: 'TR004-004',
+                title: '停牌/ST/涨跌停禁止开仓',
+                type: 'task',
+                epic: 'EPIC-008',
+                epicName: '实盘交易模块',
+                status: 'todo',
+                priority: 'p2'
+            },
+            {
+                id: 'TR005-001',
+                title: '信号日志表设计',
+                type: 'task',
+                epic: 'EPIC-008',
+                epicName: '实盘交易模块',
+                status: 'todo',
+                priority: 'p2'
+            },
+            {
+                id: 'TR005-002',
+                title: '委托/成交日志表设计',
+                type: 'task',
+                epic: 'EPIC-008',
+                epicName: '实盘交易模块',
+                status: 'todo',
+                priority: 'p2'
+            },
+            {
+                id: 'TR005-003',
+                title: '复盘查询接口',
+                type: 'task',
+                epic: 'EPIC-008',
+                epicName: '实盘交易模块',
+                status: 'todo',
+                priority: 'p2'
+            },
+
+            // EPIC-009 调度与可视化
+            {
+                id: 'OV001-001',
+                title: '盘后数据更新脚本（15:30）',
+                type: 'task',
+                epic: 'EPIC-009',
+                epicName: '调度与可视化',
+                status: 'todo',
+                priority: 'p2'
+            },
+            {
+                id: 'OV001-002',
+                title: '每日因子批量计算脚本',
+                type: 'task',
+                epic: 'EPIC-009',
+                epicName: '调度与可视化',
+                status: 'todo',
+                priority: 'p2'
+            },
+            {
+                id: 'OV001-003',
+                title: '定时任务配置与监控',
+                type: 'task',
+                epic: 'EPIC-009',
+                epicName: '调度与可视化',
+                status: 'todo',
+                priority: 'p2'
+            },
+            {
+                id: 'OV002-001',
+                title: 'Grafana + DolphinDB 连接配置',
+                type: 'task',
+                epic: 'EPIC-009',
+                epicName: '调度与可视化',
+                status: 'todo',
+                priority: 'p3'
+            },
+            {
+                id: 'OV002-002',
+                title: '净值曲线面板',
+                type: 'task',
+                epic: 'EPIC-009',
+                epicName: '调度与可视化',
+                status: 'todo',
+                priority: 'p3'
+            },
+            {
+                id: 'OV002-003',
+                title: '持仓/成交统计面板',
+                type: 'task',
+                epic: 'EPIC-009',
+                epicName: '调度与可视化',
+                status: 'todo',
+                priority: 'p3'
+            }
+        ];
+
+        // 当前筛选
+        let currentFilter = 'all';
+
+        // 渲染看板
+        function renderKanban(filter = 'all') {
+            const kanban = document.getElementById('kanban');
+            const columns = {
+                '待开始': [],
+                '进行中': [],
+                '已完成': []
+            };
+
+            // 筛选任务
+            let filteredTasks = tasks;
+            if (filter !== 'all') {
+                filteredTasks = tasks.filter(t => t.epic === filter);
+            }
+
+            // 按状态分组
+            filteredTasks.forEach(task => {
+                if (task.status === 'todo') columns['待开始'].push(task);
+                else if (task.status === 'in-progress') columns['进行中'].push(task);
+                else if (task.status === 'done') columns['已完成'].push(task);
+            });
+
+            // 渲染列
+            kanban.innerHTML = Object.entries(columns).map(([title, items]) => `
+                <div class="kanban-column">
+                    <div class="column-header">
+                        <div class="column-title">
+                            ${title}
+                            <span class="column-count">${items.length}</span>
+                        </div>
+                    </div>
+                    <div class="column-body">
+                        ${items.length === 0 ? '<div class="empty-state">暂无任务</div>' : ''}
+                        ${items.map(task => `
+                            <div class="task-card" onclick="showTaskDetail('${task.id}')">
+                                <div class="task-type">${task.id}</div>
+                                <div class="task-title">${task.title}</div>
+                                ${task.description ? `<div style="font-size: 12px; color: #666; margin-bottom: 8px;">${task.description}</div>` : ''}
+                                <div class="task-meta">
+                                    <span class="task-epic">${task.epicName}</span>
+                                    <span class="task-priority ${task.priority}" title="${task.priority.toUpperCase()}"></span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+
+            // 更新进度
+            updateProgress(filteredTasks);
+        }
+
+        // 更新进度
+        function updateProgress(taskList) {
+            const total = taskList.length;
+            const done = taskList.filter(t => t.status === 'done').length;
+            const percent = total > 0 ? Math.round((done / total) * 100) : 0;
+
+            document.getElementById('progress-fill').style.width = percent + '%';
+            document.getElementById('progress-text').textContent = `${done} / ${total}`;
+            document.getElementById('task-count').textContent = `共 ${total} 个任务`;
+        }
+
+        // 显示任务详情
+        function showTaskDetail(taskId) {
+            const task = tasks.find(t => t.id === taskId);
+            if (task) {
+                alert(`任务: ${task.id}\n\n${task.title}\n\n${task.description || '无描述'}\n\n优先级: ${task.priority.toUpperCase()}\nEpic: ${task.epicName}`);
+            }
+        }
+
+        // Tab 切换
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                currentFilter = tab.dataset.filter;
+                renderKanban(currentFilter);
+            });
+        });
+
+        // 初始渲染
+        renderKanban();
+    </script>
+</body>
+</html>
