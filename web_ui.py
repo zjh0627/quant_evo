@@ -1135,6 +1135,48 @@ def api_trade_history():
         return jsonify({'trades': history, 'count': len(history)})
     return jsonify({'trades': [], 'count': 0})
 
+
+@app.route('/api/reset', methods=['POST'])
+def api_reset():
+    """重置量化账户 - 清空所有数据"""
+    from datetime import datetime
+
+    CACHE_DIR = f'{PROJECT_ROOT}/data/cache'
+    INITIAL_CASH = 2000000.0
+
+    try:
+        # 1. 重置 virtual_portfolio.json
+        portfolio_data = {
+            "cash": INITIAL_CASH,
+            "total_value": INITIAL_CASH,
+            "positions": [],
+            "last_update": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            "equity_curve": []
+        }
+        with open(f'{CACHE_DIR}/virtual_portfolio.json', 'w', encoding='utf-8') as f:
+            json.dump(portfolio_data, f, ensure_ascii=False, indent=2)
+
+        # 2. 重置 positions.json
+        with open(f'{CACHE_DIR}/positions.json', 'w', encoding='utf-8') as f:
+            json.dump([], f, ensure_ascii=False)
+
+        # 3. 重置 real_time_trades.json
+        with open(f'{CACHE_DIR}/real_time_trades.json', 'w', encoding='utf-8') as f:
+            json.dump([], f, ensure_ascii=False)
+
+        return jsonify({
+            'success': True,
+            'message': '账户重置成功',
+            'cash': INITIAL_CASH,
+            'total_value': INITIAL_CASH
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'重置失败: {str(e)}'
+        }), 500
+
+
 @app.route('/api/live_signals')
 def api_live_signals():
     """实时信号"""
