@@ -1,0 +1,70 @@
+# Hook: pre-deploy
+# 部署前检查
+
+## 执行时机
+推送到main分支或合并PR之前
+
+## 检查项目
+
+### 1. 必须有PR
+```bash
+# 检查是否通过PR合并
+# 直接push到main被禁止
+```
+
+### 2. 必须有代码评审
+```bash
+# 至少1人approve
+gh pr view {pr_number} --json reviews
+```
+
+### 3. 测试通过
+```bash
+# 生产环境测试必须通过
+pytest tests/ -v --tb=short
+```
+
+### 4. 回测验证
+```bash
+# 策略变更必须通过回测验证
+python scripts/run_backtest.py --check-only
+```
+
+### 5. 风险检查
+```bash
+# 检查是否包含高风险变更
+grep -E "rm -rf|drop table|truncate" src/ || true
+```
+
+## 失败处理
+部署被阻止，需要修复问题后重新发起部署流程。
+
+## 配置示例
+```yaml
+# .claude/hooks/pre-deploy.yaml
+checks:
+  - name: pr-required
+    check: |
+      if [ "$BRANCH" = "main" ] && [ "$IS_PR" = "false" ]; then
+        echo "Direct push to main is blocked. Use PR instead."
+        exit 1
+      fi
+    fail_on_error: true
+
+  - name: review-approved
+    check: |
+      APPROVAL_COUNT=$(gh pr view $PR_NUMBER --json reviews -q '.[] | select(.state=="APPROVED") | .state' | wc -l)
+      if [ $APPROVAL_COUNT -lt 1 ]; then
+        echo "At least 1 approval required"
+        exit 1
+      fi
+    fail_on_error: true
+
+  - name: tests-pass
+    check: pytest tests/ -v --tb=short
+    fail_on_error: true
+
+  - name: backtest-pass
+    check: python scripts/run_backtest.py --check-only
+    fail_on_error: true
+```

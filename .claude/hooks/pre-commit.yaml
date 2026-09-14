@@ -1,0 +1,61 @@
+# Hook: pre-commit
+# 提交前检查
+
+## 执行时机
+git commit 之前
+
+## 检查项目
+
+### 1. 代码格式检查
+```bash
+# Python格式
+ruff check src/
+ruff format --check src/
+
+# 或者使用flake8 + black
+flake8 src/ --max-line-length=100
+black --check src/
+```
+
+### 2. 测试检查
+```bash
+# 必须通过测试才能提交
+pytest tests/ -v --tb=short
+```
+
+### 3. 文档更新检查
+```bash
+# 如果修改了核心模块，需要更新文档
+# 检查 todo.md 状态是否更新
+```
+
+### 4. 敏感信息检查
+```bash
+# 禁止提交
+grep -r "api_key\|password\|token\|secret" --include="*.py" src/
+```
+
+## 失败处理
+如果任何检查失败，commit被阻止，错误信息显示在终端。
+
+## 配置示例
+```yaml
+# .claude/hooks/pre-commit.yaml
+checks:
+  - name: lint
+    command: ruff check src/
+    fail_on_error: true
+
+  - name: format
+    command: ruff format --check src/
+    fail_on_error: true
+
+  - name: tests
+    command: pytest tests/ -v --tb=short
+    fail_on_error: true
+
+  - name: secrets
+    command: grep -r "api_key\|password" src/ || true
+    fail_on_error: false
+    warning_only: true
+```
