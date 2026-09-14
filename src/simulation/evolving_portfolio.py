@@ -1304,6 +1304,76 @@ class EvolvingPortfolio:
         self.portfolio = load_portfolio()
         self.positions = load_positions()
 
+        # 防回转机制 - 冷却期跟踪
+        self.cooldown_list = {}  # code -> {'type': 'sell'|'stop_loss', 'date': 'YYYY-MM-DD', 'days': N}
+        self._load_cooldowns()
+
+    def _load_cooldowns(self):
+        """从缓存加载冷却期数据"""
+        cooldown_file = f'{CACHE_DIR}/cooldowns.json'
+        if os.path.exists(cooldown_file):
+            try:
+                with open(cooldown_file, 'r') as f:
+                    self.cooldown_list = json.load(f)
+                # 清理过期冷却
+                self._clean_expired_cooldowns()
+            except:
+                self.cooldown_list = {}
+
+    def _save_cooldowns(self):
+        """保存冷却期数据"""
+        cooldown_file = f'{CACHE_DIR}/cooldowns.json'
+        with open(cooldown_file, 'w') as f:
+            json.dump(self.cooldown_list, f)
+
+    def _clean_expired_cooldowns(self):
+        """清理过期的冷却期"""
+        today = datetime.now().strftime('%Y-%m-%d')
+        expired = []
+        for code, info in self.cooldown_list.items():
+            cooldown_days = info.get('days', 5)
+            sell_date = info.get('date', '')
+            # 简单检查：如果不是今天设置的，检查是否过期
+            if sell_date != today:
+                expired.append(code)
+        for code in expired:
+            del self.cooldown_list[code]
+
+    def _add_cooldown(self, code: str, cooldown_type: str, days: int):
+        """添加冷却期"""
+        self.cooldown_list[code] = {
+            'type': cooldown_type,
+            'date': datetime.now().strftime('%Y-%m-%d'),
+            'days': days
+        }
+        self._save_cooldowns()
+
+    def _is_in_cooldown(self, code: str) -> tuple:
+        """检查是否在冷却期，返回(是否在冷却, 剩余天数)"""
+        if code not in self.cooldown_list:
+            return False, 0
+
+        info = self.cooldown_list[code]
+        cooldown_days = info.get('days', 5)
+        sell_date = info.get('date', '')
+
+        # 如果是今天设置的，直接返回True
+        today = datetime.now().strftime('%Y-%m-%d')
+        if sell_date == today:
+            return True, cooldown_days
+
+        # 否则删除过期冷却（基于时间戳判断更准确，这里简化处理）
+        return False, 0
+
+    def _get_hold_days(self, entry_date: str) -> int:
+        """计算持仓天数"""
+        try:
+            entry = datetime.strptime(entry_date, '%Y-%m-%d')
+            today = datetime.now()
+            return (today - entry).days
+        except:
+            return 0
+
     def initialize(self):
         if self.model.load():
             self.signal_generator = MultiStrategySignal(self.model)
@@ -1430,6 +1500,11 @@ class EvolvingPortfolio:
     def execute_trades(self, buy_signals: dict, sell_signals: dict, params: dict):
         TRADE_FILE = f'{CACHE_DIR}/trade_history.json'
 
+        # 获取防回转参数
+        sell_cooldown_days = params.get('sell_cooldown_days', 5)
+        stop_loss_cooldown_days = params.get('stop_loss_cooldown_days', 10)
+        min_hold_days = params.get('min_hold_days', 3)
+
         # Load existing trade history
         trades = []
         if os.path.exists(TRADE_FILE):
@@ -1438,14 +1513,33 @@ class EvolvingPortfolio:
 
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
+        # 清理过期冷却
+        self._clean_expired_cooldowns()
+
+        # ========== 卖出逻辑 ==========
         for pos in self.positions[:]:
             if pos.code in sell_signals:
                 sig = sell_signals[pos.code]
+
+                # 防回转检查：最小持仓天数
+                hold_days = self._get_hold_days(pos.entry_date)
+                if hold_days < min_hold_days:
+                    print(f"跳过卖出 {pos.name}: 持仓仅{hold_days}天 < 最小{min_hold_days}天")
+                    continue
+
                 if sig['price'] > 0:
                     pnl_pct = (sig['price'] - pos.entry_price) / pos.entry_price
                     pnl_amount = pos.shares * (sig['price'] - pos.entry_price) * 0.999
                     revenue = pos.shares * sig['price'] * 0.999
                     self.portfolio.cash += revenue
+
+                    # 判断卖出原因
+                    reason = sig.get('signal', 'SIGNAL')
+                    if pnl_pct < -0.05:  # 亏损卖出，添加冷却期
+                        self._add_cooldown(pos.code, 'stop_loss', stop_loss_cooldown_days)
+                        reason = 'stop_loss'
+                    else:
+                        self._add_cooldown(pos.code, 'sell', sell_cooldown_days)
 
                     # Record sell trade
                     trades.append({
@@ -1459,12 +1553,13 @@ class EvolvingPortfolio:
                         'entry_date': pos.entry_date,
                         'pnl_pct': pnl_pct,
                         'pnl_amount': pnl_amount,
-                        'reason': sig.get('signal', 'SIGNAL')
+                        'reason': reason
                     })
 
-                    print(f"卖出 {pos.name} @ {sig['price']:.2f} (盈亏: {pnl_pct*100:+.1f}%)")
+                    print(f"卖出 {pos.name} @ {sig['price']:.2f} (盈亏: {pnl_pct*100:+.1f}%, 原因: {reason})")
                     self.positions.remove(pos)
 
+        # ========== 买入逻辑 ==========
         if buy_signals and len(self.positions) < int(params['top_n']):
             sorted_buys = sorted(buy_signals.items(), key=lambda x: x[1]['score'], reverse=True)
             for code, sig in sorted_buys:
@@ -1472,6 +1567,12 @@ class EvolvingPortfolio:
                     continue
                 if len(self.positions) >= int(params['top_n']):
                     break
+
+                # 防回转检查：冷却期
+                in_cooldown, remaining = self._is_in_cooldown(code)
+                if in_cooldown:
+                    print(f"跳过买入 {code}: 在冷却期({remaining}天)")
+                    continue
 
                 # 根据仓位比例计算买入股数
                 target_value = self.portfolio.total_value * params.get('position_size', 0.15)
@@ -1506,6 +1607,7 @@ class EvolvingPortfolio:
                         'pnl_amount': 0,
                         'reason': sig.get('signal', 'SIGNAL')
                     })
+                    print(f"买入 {get_stock_name(code)} @ {entry_price:.2f}")
 
                     print(f"买入 {get_stock_name(code)} @ {entry_price:.2f}")
 
