@@ -62,6 +62,10 @@ DEFAULT_PARAMS = {
     # Plan D: 趋势确认参数(当前市场无效,保持关闭)
     'require_uptrend': False,         # Plan D: 只在上升趋势中买入(过于严格)
     'uptrend_ma_period': 20,        # 趋势确认MA周期
+    # 行业轮动参数
+    'use_sector_rotation': True,      # 启用行业轮动加成
+    'use_sector_filter': True,        # 启用行业过滤（非强势行业降分）
+    'max_stocks_per_sector': 2,       # 单个行业最多持仓股票数
 }
 
 
@@ -504,14 +508,25 @@ class MultiStrategySignal:
     def _load_industry_data(self):
         """加载行业分类数据"""
         try:
+            from src.simulation.industry_mapping import map_to_sw_level_1
+
             pool_path = f'{DATA_DIR}/expanded_stock_pool.json'
             if os.path.exists(pool_path):
                 with open(pool_path, 'r') as f:
                     pool = json.load(f)
-                    self.industry_map = pool.get('industries', {})
-                    print(f"  [行业] 加载了 {len(self.industry_map)} 只股票的行业数据")
+                    # 三级行业映射到一级行业
+                    raw_industry_map = pool.get('industries', {})
+                    self.industry_map = {}
+                    for code, level3 in raw_industry_map.items():
+                        self.industry_map[code] = map_to_sw_level_1(level3)
+                    print(f"  [行业] 加载了 {len(self.industry_map)} 只股票的行业数据(一级)")
+                    # 统计一级行业分布
+                    from collections import Counter
+                    level1_counts = Counter(self.industry_map.values())
+                    print(f"  [行业] 一级行业数量: {len(level1_counts)}")
         except Exception as e:
             print(f"  [行业] 加载失败: {e}")
+            self.industry_map = {}
 
     def _init_icir_manager(self):
         """初始化ICIR动态权重管理器"""
@@ -866,25 +881,58 @@ class MultiStrategySignal:
             dynamic_sell_threshold = params.get('sell_threshold', 42)
             print(f"  [固定阈值] 买入={dynamic_buy_threshold:.1f}, 卖出={dynamic_sell_threshold:.1f}")
 
-        # ========== 第三步：分配信号 ==========
+        # ========== 第三步：行业过滤和信号分配 ==========
         require_uptrend = params.get('require_uptrend', False)
+        use_sector_filter = params.get('use_sector_filter', True)  # 是否启用行业过滤
+        max_stocks_per_sector = params.get('max_stocks_per_sector', 2)  # 单个行业最多持仓
+
+        # 获取强势行业列表（动量排名前5）
+        strong_sectors = set()
+        if sector_momentum:
+            sorted_sectors = sorted(sector_momentum.items(), key=lambda x: -x[1])[:5]
+            strong_sectors = {s[0] for s in sorted_sectors}
+            print(f"  [行业过滤] 强势行业: {list(strong_sectors)}")
+
+        # 获取当前持仓行业（避免误卖）
+        current_holdings = {p.code: self.industry_map.get(p.code, '其他') for p in self.positions}
+
+        # 强相关行业组
+        from src.simulation.industry_mapping import get_related_industries
+        excluded_sectors = set()  # 因强相关被排除的行业
 
         for code, final_score in temp_scores.items():
             data = temp_data[code]
             uptrend = data.get('uptrend', True)
+            industry = data['industry']
+
+            # ========== 行业过滤：不在强势行业中，降低评分 ==========
+            if use_sector_filter and industry not in strong_sectors and industry != '其他':
+                # 非强势行业，降低买入优先级（但仍可持有）
+                final_score_adjusted = final_score - 10
+            else:
+                final_score_adjusted = final_score
+
+            # ========== 强相关行业约束 ==========
+            # 如果已持有某行业的股票，则不买入其强相关行业
+            if code not in current_holdings:
+                related = get_related_industries(industry)
+                for held_code, held_industry in current_holdings.items():
+                    if held_industry in related:
+                        final_score_adjusted -= 15
+                        break
 
             # Plan D: 趋势确认过滤
             if require_uptrend and not uptrend:
                 # 下降趋势中不买入,但可以持有或卖出
-                if final_score < dynamic_sell_threshold:
+                if final_score_adjusted < dynamic_sell_threshold:
                     signal = 'SELL'
                 else:
                     signal = 'HOLD'
             else:
-                # 正常信号分配
-                if final_score > dynamic_buy_threshold:
+                # 正常信号分配（使用调整后的分数）
+                if final_score_adjusted > dynamic_buy_threshold:
                     signal = 'BUY'
-                elif final_score < dynamic_sell_threshold:
+                elif final_score_adjusted < dynamic_sell_threshold:
                     signal = 'SELL'
                 else:
                     signal = 'HOLD'
@@ -892,6 +940,7 @@ class MultiStrategySignal:
             signals[code] = {
                 'signal': signal,
                 'score': final_score,
+                'score_adjusted': final_score_adjusted,
                 'buy_threshold': dynamic_buy_threshold,
                 'sell_threshold': dynamic_sell_threshold,
                 'ml_pred': (data['ml_score'] - 50) / 100,
@@ -910,7 +959,8 @@ class MultiStrategySignal:
                 'margin_boost': data.get('margin_boost', 0),
                 'margin_description': data.get('margin_description', ''),
                 'sector_boost': data['sector_boost'],
-                'industry': data['industry']
+                'industry': data['industry'],
+                'is_strong_sector': industry in strong_sectors
             }
 
         return signals
