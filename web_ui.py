@@ -1348,6 +1348,97 @@ def api_news_signals():
     return jsonify({'signals': [], 'count': 0, 'updated': '', 'cached': False})
 
 
+@app.route('/api/signals/realtime')
+def api_signals_realtime():
+    """实时信号 - 基于实时行情生成"""
+    from src.realtime.realtime_service import get_instance
+
+    service = get_instance()
+    signals = service.get_latest_signals()
+
+    signal_list = []
+    for code, signal in signals.items():
+        signal_list.append({
+            'code': signal.code,
+            'name': signal.name,
+            'score': signal.score,
+            'signal': signal.signal,
+            'confidence': signal.confidence,
+            'reason': signal.reason,
+            'rsi': signal.rsi_14,
+            'macd': signal.macd,
+            'macd_hist': signal.macd_hist,
+            'boll_position': signal.boll_position,
+            'kdj_k': signal.kdj_k,
+            'kdj_j': signal.kdj_j,
+            'momentum_5d': signal.momentum_5d,
+            'volume_ratio': signal.volume_ratio,
+            'timestamp': signal.timestamp.strftime('%Y-%m-%d %H:%M:%S') if signal.timestamp else ''
+        })
+
+    # 按评分排序
+    signal_order = {'BUY': 0, 'SELL': 1, 'HOLD': 2}
+    signal_list.sort(key=lambda x: (signal_order[x['signal']], -x['score']))
+
+    last_update = service.get_last_update()
+    return jsonify({
+        'signals': signal_list,
+        'count': len(signal_list),
+        'buy_count': sum(1 for s in signal_list if s['signal'] == 'BUY'),
+        'sell_count': sum(1 for s in signal_list if s['signal'] == 'SELL'),
+        'hold_count': sum(1 for s in signal_list if s['signal'] == 'HOLD'),
+        'updated': last_update.strftime('%Y-%m-%d %H:%M:%S') if last_update else '',
+        'market_open': service.quote_provider.is_market_open() if hasattr(service, 'quote_provider') else False
+    })
+
+
+@app.route('/api/quotes/all')
+def api_quotes_all():
+    """获取所有股票实时行情"""
+    from src.realtime.realtime_service import get_instance
+
+    service = get_instance()
+    quotes = service.get_latest_quotes()
+
+    quote_list = []
+    for code, quote in quotes.items():
+        quote_list.append({
+            'code': quote.code,
+            'name': quote.name,
+            'current': quote.current,
+            'open': quote.open,
+            'high': quote.high,
+            'low': quote.low,
+            'volume': quote.volume,
+            'amount': quote.amount,
+            'pct_change': quote.pct_change,
+            'timestamp': quote.timestamp.strftime('%Y-%m-%d %H:%M:%S') if quote.timestamp else ''
+        })
+
+    return jsonify({
+        'quotes': quote_list,
+        'count': len(quote_list),
+        'updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    })
+
+
+@app.route('/api/realtime/status')
+def api_realtime_status():
+    """实时信号服务状态"""
+    from src.realtime.realtime_service import get_instance
+
+    service = get_instance()
+    last_update = service.get_last_update()
+
+    return jsonify({
+        'running': service.running,
+        'last_update': last_update.strftime('%Y-%m-%d %H:%M:%S') if last_update else '',
+        'signal_count': len(service.get_latest_signals()),
+        'quote_count': len(service.get_latest_quotes()),
+        'market_open': service.quote_provider.is_market_open() if hasattr(service, 'quote_provider') else False
+    })
+
+
 @app.route('/api/news/important')
 def api_news_important():
     """重要新闻列表"""
@@ -1426,4 +1517,19 @@ def api_news_config():
 if __name__ == '__main__':
     print("启动 quant_evo Web UI...")
     print("访问 http://localhost:5124")
+
+    # 可选：启动实时信号服务
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--realtime', action='store_true', help='启动实时信号服务')
+    args, _ = parser.parse_known_args()
+
+    if args.realtime:
+        print("启动实时信号服务...")
+        from src.realtime.realtime_service import start_service
+        from src.realtime.quote_provider import load_stock_pool
+        codes = load_stock_pool()[:50]  # 最多50只
+        start_service(codes)
+        print(f"实时服务已启动，监控 {len(codes)} 只股票")
+
     app.run(host='0.0.0.0', port=5124, debug=True)
