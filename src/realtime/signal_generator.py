@@ -212,22 +212,28 @@ class RealtimeSignalGenerator:
                 df.iloc[-1, df.columns.get_loc('volume')] = quote.volume
                 return df
 
-        # 添加新行
-        new_row = {
-            'date': today,
-            'code': quote.code.replace('.', '_'),
-            'open': quote.open,
-            'high': quote.high,
-            'low': quote.low,
-            'close': quote.current,
-            'volume': quote.volume,
-            'amount': quote.amount,
-        }
-
-        # 确保列对齐
+        # 添加新行 - 确保所有列都存在
+        new_row = {}
         for col in df.columns:
-            if col not in new_row:
-                new_row[col] = 0 if col in ['volume', 'amount'] else None
+            if col == 'date':
+                new_row[col] = today
+            elif col == 'code':
+                new_row[col] = quote.code.replace('.', '_')
+            elif col == 'open':
+                new_row[col] = quote.open
+            elif col == 'high':
+                new_row[col] = quote.high
+            elif col == 'low':
+                new_row[col] = quote.low
+            elif col == 'close':
+                new_row[col] = quote.current
+            elif col in ['volume', 'vol']:
+                new_row[col] = quote.volume
+            elif col == 'amount':
+                new_row[col] = quote.amount
+            else:
+                # 其他列用前一行或0填充
+                new_row[col] = df[col].iloc[-1] if col in df.columns and len(df) > 0 else None
 
         df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
         return df
